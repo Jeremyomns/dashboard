@@ -2,10 +2,9 @@ import Airtable from "airtable";
 import { Project, Section, Task } from "./types";
 
 Airtable.configure({
-  apiKey: process.env.AIR_TABLE_TOKEN,
-});
+  apiKey: process.env.AIR_TABLE_TOKEN});
 
-const base = Airtable.base(process.env.AIR_TABLE_BASE_ID || "");
+const base = Airtable.base(process.env.AIR_TABLE_BASE_ID || '');
 
 const PROJECTS_TABLE = "projects";
 const SECTIONS_TABLE = "sections";
@@ -15,13 +14,19 @@ const TASKS_TABLE = "tasks";
 // GET
 export async function getProjects(): Promise<Project[]> {
   const records = await base(PROJECTS_TABLE).select().all();
-  return records.map(
-    (record) =>
+  const projects = records.map(
+    (p) =>
       ({
-        id: record.id,
-        ...record.fields,
+        id: p.id,
+        ...p.fields,
       } as Project)
   );
+
+  projects.forEach(async (p) => p.sections = await getSections(p.id))
+  
+  console.log(projects);
+  
+  return projects;
 };
 
 export const getSections = async (projectId?: string): Promise<Section[]> => {
@@ -33,14 +38,17 @@ export const getSections = async (projectId?: string): Promise<Section[]> => {
     });
   }
 
-  const records = await query.all();
-  return records.map(
-    (record) =>
+  let records = await query.all();
+  let sections = records.map(
+    (s) =>
       ({
-        id: record.id,
-        ...record.fields,
+        id: s.id,
+        ...s.fields,
       } as Section)
   );
+
+  sections.map(async (s) => s.tasks = await getTasks(s.id))
+  return sections
 };
 
 export const getTasks = async (sectionId?: string): Promise<Task[]> => {

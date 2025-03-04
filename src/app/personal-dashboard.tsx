@@ -5,8 +5,6 @@ import { Plus, Trash2, Edit2, AlertCircle, CheckCircle, FileText, Home, Settings
 import { Project, Section, Task } from './types';
 import { getProjects, getSections, getTasks } from './airtable';
 
-
-
 const LocalStorage: Storage | null = (typeof window !== "undefined") ? localStorage : null;
 
 
@@ -115,11 +113,9 @@ const styles = {
 
 // Composant principal du Dashboard
 const Dashboard: React.FC = () => {
-  const [projects, setProjects] = useState(() => {
-    return []
-  });
+  const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
-  const [isAddingProject, setIsAddingProject] = useState(false);
+  const [isAddingProject, setIsAddingProject] = useState<boolean>(false);
   const [newProject, setNewProject] = useState({ title: '', description: '' });
   const [editMode, setEditMode] = useState({ active: false, type: null, id: null });
   const [editText, setEditText] = useState('');
@@ -136,7 +132,7 @@ const Dashboard: React.FC = () => {
 
   useEffect(() => {
     if (selectedProject) {
-      fetchSectionsAndTasks(selectedProject.id);
+      //fetchSectionsAndTasks(selectedProject.id);
     }
   }, [selectedProject]);
 
@@ -524,7 +520,7 @@ const Dashboard: React.FC = () => {
               <div className="mt-3 text-sm text-gray-600">
                 <div className="flex items-center">
                   <FileText size={14} className="mr-1" />
-                  <span>{project.sections.flatMap(s => s.tasks).length} tâche(s)</span>
+                  <span>{project.sections?.flatMap(s => s.tasks).length || 0} tâche(s)</span>
                 </div>
               </div>
             </div>
