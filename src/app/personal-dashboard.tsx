@@ -2,38 +2,44 @@
 
 import React, { useState, useEffect } from 'react';
 import { Plus, Trash2, Edit2, AlertCircle, CheckCircle, FileText, Home, Settings, DollarSign, PlusCircle } from 'lucide-react';
+import { Project, Section, Task } from './types';
+import { getProjects, getSections, getTasks } from './airtable';
 
-// Données initiales pour la démo
-const initialProjects = [
+
+
+const LocalStorage: Storage | null = (typeof window !== "undefined") ? localStorage : null;
+
+
+const initialProjects: Project[] = [
   {
-    id: 1,
+    id: '1',
     title: "Rénovation Maison",
     description: "Travaux de rénovation du salon et de la cuisine",
     progress: 35,
     sections: [
       {
-        id: 1,
+        id: '1',
         title: "Travaux",
         tasks: [
-          { id: 1, title: "Acheter peinture", completed: true },
-          { id: 2, title: "Retirer ancien papier peint", completed: true },
-          { id: 3, title: "Peindre les murs", completed: false },
-          { id: 4, title: "Installer les nouvelles étagères", completed: false }
+          { id: '1', title: "Acheter peinture", completed: true },
+          { id: '2', title: "Retirer ancien papier peint", completed: true },
+          { id: '3', title: "Peindre les murs", completed: false },
+          { id: '4', title: "Installer les nouvelles étagères", completed: false }
         ]
       },
       {
-        id: 2,
+        id: '2',
         title: "Dépenses",
         tasks: [
-          { id: 5, title: "Peinture: 120€", completed: true },
-          { id: 6, title: "Outils: 85€", completed: true },
-          { id: 7, title: "Étagères: 200€", completed: false }
+          { id: '5', title: "Peinture: 120€", completed: true },
+          { id: '6', title: "Outils: 85€", completed: true },
+          { id: '7', title: "Étagères: 200€", completed: false }
         ]
       }
     ]
   },
   {
-    id: 2,
+    id: '2',
     title: "Développement Site Web",
     description: "Création de mon site personnel",
     progress: 60,
@@ -58,7 +64,7 @@ const initialProjects = [
     ]
   },
   {
-    id: 3,
+    id: '3',
     title: "Organisation Vacances",
     description: "Planification des vacances d'été",
     progress: 20,
@@ -108,25 +114,64 @@ const styles = {
 };
 
 // Composant principal du Dashboard
-const Dashboard = () => {
+const Dashboard: React.FC = () => {
   const [projects, setProjects] = useState(() => {
-    const savedProjects = localStorage.getItem('projects');
-    return savedProjects ? JSON.parse(savedProjects) : initialProjects;
+    return []
   });
-  const [selectedProject, setSelectedProject] = useState(null);
+  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [isAddingProject, setIsAddingProject] = useState(false);
   const [newProject, setNewProject] = useState({ title: '', description: '' });
   const [editMode, setEditMode] = useState({ active: false, type: null, id: null });
   const [editText, setEditText] = useState('');
   const [isAddingSection, setIsAddingSection] = useState(false);
   const [newSection, setNewSection] = useState({ title: '' });
+  const [sections, setSections] = useState<Section[]>([]);
   const [isAddingTask, setIsAddingTask] = useState({ active: false, sectionId: null });
   const [newTask, setNewTask] = useState({ title: '' });
+  const [tasks, setTasks] = useState<Task[]>([]);
 
-  // Sauvegarder les projets dans localStorage
   useEffect(() => {
-    localStorage.setItem('projects', JSON.stringify(projects));
-  }, [projects]);
+    fetchProjects();
+  }, []);
+
+  useEffect(() => {
+    if (selectedProject) {
+      fetchSectionsAndTasks(selectedProject.id);
+    }
+  }, [selectedProject]);
+
+  const fetchProjects = async () => {
+    try {
+      // setLoading(true);
+      const projectData = await getProjects();
+      setProjects(projectData);
+      // setLoading(false);
+    } catch (err) {
+      // setError('Erreur lors du chargement des projets');
+      // setLoading(false);
+      console.error(err);
+    }
+  };
+
+  const fetchSectionsAndTasks = async (projectId: string) => {
+    try {
+      // setLoading(true);
+      
+      // Récupérer les sections pour ce projet
+      const sectionData = await getSections(projectId);
+      setSections(sectionData);
+      
+      // Récupérer toutes les tâches
+      const tasks = await getTasks(sectionData.id);
+
+      setTasks(tasks);
+      // setLoading(false);
+    } catch (err) {
+      // setError('Erreur lors du chargement des détails du projet');
+      // setLoading(false);
+      console.error(err);
+    }
+  };
 
   // Calcul du progrès d'un projet basé sur les tâches complétées
   const calculateProgress = (project) => {
