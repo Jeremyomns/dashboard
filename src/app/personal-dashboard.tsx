@@ -43,20 +43,20 @@ const initialProjects: Project[] = [
     progress: 60,
     sections: [
       {
-        id: 3,
+        id: '3',
         title: "Design",
         tasks: [
-          { id: 8, title: "Créer maquette", completed: true },
-          { id: 9, title: "Valider design", completed: true }
+          { id: '8', title: "Créer maquette", completed: true },
+          { id: '9', title: "Valider design", completed: true }
         ]
       },
       {
-        id: 4,
+        id: '4',
         title: "Développement",
         tasks: [
-          { id: 10, title: "Intégration HTML/CSS", completed: true },
-          { id: 11, title: "Développer back-end", completed: false },
-          { id: 12, title: "Tests utilisateurs", completed: false }
+          { id: '10', title: "Intégration HTML/CSS", completed: true },
+          { id: '11', title: "Développer back-end", completed: false },
+          { id: '12', title: "Tests utilisateurs", completed: false }
         ]
       }
     ]
@@ -68,21 +68,21 @@ const initialProjects: Project[] = [
     progress: 20,
     sections: [
       {
-        id: 5,
+        id: '5',
         title: "Réservations",
         tasks: [
-          { id: 13, title: "Réserver vol", completed: true },
-          { id: 14, title: "Réserver hôtel", completed: false },
-          { id: 15, title: "Louer voiture", completed: false }
+          { id: '13', title: "Réserver vol", completed: true },
+          { id: '14', title: "Réserver hôtel", completed: false },
+          { id: '15', title: "Louer voiture", completed: false }
         ]
       },
       {
-        id: 6,
+        id: '6',
         title: "Budget",
         tasks: [
-          { id: 16, title: "Vol: 350€", completed: true },
-          { id: 17, title: "Hébergement: 800€", completed: false },
-          { id: 18, title: "Activités: 400€", completed: false }
+          { id: '16', title: "Vol: 350€", completed: true },
+          { id: '17', title: "Hébergement: 800€", completed: false },
+          { id: '18', title: "Activités: 400€", completed: false }
         ]
       }
     ]
@@ -117,12 +117,12 @@ const Dashboard: React.FC = () => {
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [isAddingProject, setIsAddingProject] = useState<boolean>(false);
   const [newProject, setNewProject] = useState({ title: '', description: '' });
-  const [editMode, setEditMode] = useState({ active: false, type: null, id: null });
+  const [editMode, setEditMode] = useState<{active: boolean, type: 'project'|'section'|'task'|null, id: string|null}>({ active: false, type: null, id: null });
   const [editText, setEditText] = useState('');
   const [isAddingSection, setIsAddingSection] = useState(false);
   const [newSection, setNewSection] = useState({ title: '' });
   const [sections, setSections] = useState<Section[]>([]);
-  const [isAddingTask, setIsAddingTask] = useState({ active: false, sectionId: null });
+  const [isAddingTask, setIsAddingTask] = useState<{ active: boolean, sectionId: string | null }>({ active: false, sectionId: null });
   const [newTask, setNewTask] = useState({ title: '' });
   const [tasks, setTasks] = useState<Task[]>([]);
 
@@ -158,7 +158,7 @@ const Dashboard: React.FC = () => {
       setSections(sectionData);
       
       // Récupérer toutes les tâches
-      const tasks = await getTasks(sectionData.id);
+      const tasks: Task[] = [] //  TODO await getTasks(sectionData.id);
 
       setTasks(tasks);
       // setLoading(false);
@@ -170,8 +170,8 @@ const Dashboard: React.FC = () => {
   };
 
   // Calcul du progrès d'un projet basé sur les tâches complétées
-  const calculateProgress = (project) => {
-    const allTasks = project.sections.flatMap(section => section.tasks);
+  const calculateProgress = (project: Project) => {
+    const allTasks: Task[] = project.sections?.flatMap(section => section.tasks ?? []) ?? [];
     if (allTasks.length === 0) return 0;
     const completedTasks = allTasks.filter(task => task.completed).length;
     return Math.round((completedTasks / allTasks.length) * 100);
@@ -181,9 +181,9 @@ const Dashboard: React.FC = () => {
   const handleAddProject = () => {
     if (newProject.title.trim() === '') return;
     
-    const newId = Math.max(0, ...projects.map(p => p.id)) + 1;
-    const projectToAdd = {
-      id: newId,
+    const newId = Math.max(0, ...projects.map(p => +p.id)) + 1;
+    const projectToAdd: Project = {
+      id: newId.toString(),
       title: newProject.title,
       description: newProject.description,
       progress: 0,
@@ -199,55 +199,56 @@ const Dashboard: React.FC = () => {
   const handleAddSection = () => {
     if (newSection.title.trim() === '' || !selectedProject) return;
     
-    const newId = Math.max(0, ...projects.flatMap(p => p.sections.map(s => s.id))) + 1;
-    const updatedProjects = projects.map(project => {
+    const newId = Math.max(0, ...projects.flatMap(p => p.sections?.map(s => +s.id) ?? [])) + 1;
+    const updatedProjects: Project[] = projects.map(project => {
       if (project.id === selectedProject.id) {
         return {
           ...project,
-          sections: [...project.sections, {
-            id: newId,
+          sections: [...project.sections ?? [], {
+            id: newId.toString(),
             title: newSection.title,
             tasks: []
           }]
-        };
+        } satisfies Project;
       }
       return project;
     });
     
     setProjects(updatedProjects);
-    setSelectedProject(updatedProjects.find(p => p.id === selectedProject.id));
+    setSelectedProject(updatedProjects.find(p => p.id === selectedProject.id) ?? null);
     setNewSection({ title: '' });
     setIsAddingSection(false);
   };
 
   // Ajout d'une nouvelle tâche à une section
-  const handleAddTask = (sectionId) => {
+  const handleAddTask = (sectionId: string) => {
     if (newTask.title.trim() === '' || !selectedProject) return;
     
-    const newId = Math.max(0, ...projects.flatMap(p => p.sections.flatMap(s => s.tasks.map(t => t.id)))) + 1;
-    const updatedProjects = projects.map(project => {
+    const newId = Math.max(0, ...projects.flatMap(p => p.sections?.flatMap(s => s.tasks?.map(t => +t.id) ?? []) ?? [])) + 1;
+    const updatedProjects: Project[] = projects.map(project => {
       if (project.id === selectedProject.id) {
         return {
           ...project,
-          sections: project.sections.map(section => {
+          sections: project.sections?.map(section => {
             if (section.id === sectionId) {
               return {
                 ...section,
-                tasks: [...section.tasks, {
-                  id: newId,
+                tasks: [...section.tasks ?? [], {
+                  id: newId.toString(),
                   title: newTask.title,
                   completed: false
                 }]
-              };
+              } satisfies Section;
             }
             return section;
           })
-        };
+        } satisfies Project;
       }
       return project;
     });
     
-    const updatedProject = updatedProjects.find(p => p.id === selectedProject.id);
+    const updatedProject: Project | null = updatedProjects.find(p => p.id === selectedProject.id) ?? null;
+    if (!updatedProject) return;
     updatedProject.progress = calculateProgress(updatedProject);
     
     setProjects(updatedProjects);
@@ -257,25 +258,26 @@ const Dashboard: React.FC = () => {
   };
 
   // Suppression d'un projet
-  const handleDeleteProject = (projectId) => {
+  const handleDeleteProject = (projectId: string) => {
     const updatedProjects = projects.filter(project => project.id !== projectId);
     setProjects(updatedProjects);
     setSelectedProject(null);
   };
 
   // Suppression d'une section
-  const handleDeleteSection = (sectionId) => {
+  const handleDeleteSection = (sectionId: string) => {
     const updatedProjects = projects.map(project => {
-      if (project.id === selectedProject.id) {
+      if (project.id === selectedProject?.id) {
         return {
           ...project,
-          sections: project.sections.filter(section => section.id !== sectionId)
+          sections: project.sections?.filter(section => section.id !== sectionId)
         };
       }
       return project;
     });
     
-    const updatedProject = updatedProjects.find(p => p.id === selectedProject.id);
+    const updatedProject = updatedProjects.find(p => p.id === selectedProject?.id);
+    if(!updatedProject) return;
     updatedProject.progress = calculateProgress(updatedProject);
     
     setProjects(updatedProjects);
@@ -283,17 +285,17 @@ const Dashboard: React.FC = () => {
   };
 
   // Suppression d'une tâche
-  const handleDeleteTask = (sectionId, taskId) => {
-    const updatedProjects = projects.map(project => {
-      if (project.id === selectedProject.id) {
+  const handleDeleteTask = (sectionId: string, taskId: string) => {
+    const updatedProjects: Project[] = projects.map(project => {
+      if (project.id === selectedProject?.id) {
         return {
           ...project,
-          sections: project.sections.map(section => {
+          sections: project.sections?.map(section => {
             if (section.id === sectionId) {
               return {
                 ...section,
-                tasks: section.tasks.filter(task => task.id !== taskId)
-              };
+                tasks: section.tasks?.filter(task => task.id !== taskId)
+              } satisfies Section;
             }
             return section;
           })
@@ -302,7 +304,8 @@ const Dashboard: React.FC = () => {
       return project;
     });
     
-    const updatedProject = updatedProjects.find(p => p.id === selectedProject.id);
+    const updatedProject = updatedProjects.find(p => p.id === selectedProject?.id);
+    if (!updatedProject) return;
     updatedProject.progress = calculateProgress(updatedProject);
     
     setProjects(updatedProjects);
@@ -310,16 +313,16 @@ const Dashboard: React.FC = () => {
   };
 
   // Basculer l'état d'une tâche (complétée ou non)
-  const handleToggleTask = (sectionId, taskId) => {
-    const updatedProjects = projects.map(project => {
-      if (project.id === selectedProject.id) {
+  const handleToggleTask = (sectionId: string, taskId: string) => {
+    const updatedProjects: Project[] = projects.map(project => {
+      if (project.id === selectedProject?.id) {
         return {
           ...project,
-          sections: project.sections.map(section => {
+          sections: project.sections?.map(section => {
             if (section.id === sectionId) {
               return {
                 ...section,
-                tasks: section.tasks.map(task => {
+                tasks: section.tasks?.map(task => {
                   if (task.id === taskId) {
                     return {
                       ...task,
@@ -337,7 +340,8 @@ const Dashboard: React.FC = () => {
       return project;
     });
     
-    const updatedProject = updatedProjects.find(p => p.id === selectedProject.id);
+    const updatedProject = updatedProjects.find(p => p.id === selectedProject?.id);
+    if(!updatedProject) return;
     updatedProject.progress = calculateProgress(updatedProject);
     
     setProjects(updatedProjects);
@@ -345,7 +349,7 @@ const Dashboard: React.FC = () => {
   };
 
   // Gestion de l'édition des titres (projet, section, tâche)
-  const startEdit = (type, id, currentText) => {
+  const startEdit = (type: 'project' | 'section' | 'task' | null, id: string, currentText: string) => {
     setEditMode({ active: true, type, id });
     setEditText(currentText);
   };
@@ -370,34 +374,34 @@ const Dashboard: React.FC = () => {
 
       case 'section':
         updatedProjects = projects.map(project => {
-          if (project.id === selectedProject.id) {
+          if (project.id === selectedProject?.id) {
             return {
               ...project,
-              sections: project.sections.map(section => {
+              sections: project.sections?.map(section => {
                 if (section.id === editMode.id) {
-                  return { ...section, title: editText };
+                  return { ...section, title: editText } satisfies Section;
                 }
                 return section;
               })
-            };
+            } satisfies Project;
           }
           return project;
         });
         break;
 
       case 'task':
-        const [sectionId, taskId] = editMode.id.split('-').map(Number);
+        const [sectionId, taskId] = editMode.id?.split('-') ?? [null, null];
         updatedProjects = projects.map(project => {
-          if (project.id === selectedProject.id) {
+          if (project.id === selectedProject?.id) {
             return {
               ...project,
-              sections: project.sections.map(section => {
+              sections: project.sections?.map(section => {
                 if (section.id === sectionId) {
                   return {
                     ...section,
-                    tasks: section.tasks.map(task => {
-                      if (task.id === taskId) {
-                        return { ...task, title: editText };
+                    tasks: section.tasks?.map(task => {
+                      if (task?.id === taskId) {
+                        return { ...task, title: editText } satisfies Task;
                       }
                       return task;
                     })
@@ -405,7 +409,7 @@ const Dashboard: React.FC = () => {
                 }
                 return section;
               })
-            };
+            } satisfies Project;
           }
           return project;
         });
@@ -418,7 +422,7 @@ const Dashboard: React.FC = () => {
     setProjects(updatedProjects);
     
     if (selectedProject) {
-      setSelectedProject(updatedProjects.find(p => p.id === selectedProject.id));
+      setSelectedProject(updatedProjects.find(p => p.id === selectedProject.id) ?? null);
     }
     
     setEditMode({ active: false, type: null, id: null });
@@ -640,7 +644,7 @@ const Dashboard: React.FC = () => {
           </div>
         )}
 
-        {selectedProject.sections.map(section => (
+        {selectedProject.sections?.map(section => (
           <div key={section.id} className="bg-white rounded-lg shadow-md mb-4 overflow-hidden">
             <div className="flex justify-between items-center p-3 bg-gray-50 border-b">
               {editMode.active && editMode.type === 'section' && editMode.id === section.id ? (
@@ -683,7 +687,7 @@ const Dashboard: React.FC = () => {
             </div>
             
             <ul className="divide-y">
-              {section.tasks.map(task => (
+              {section.tasks?.map(task => (
                 <li key={task.id} className="p-3 flex items-center justify-between hover:bg-gray-50">
                   <div className="flex items-center">
                     <input
