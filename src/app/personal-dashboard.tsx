@@ -3,91 +3,14 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Trash2, Edit2, AlertCircle, CheckCircle, FileText, Home, Settings, DollarSign, PlusCircle } from 'lucide-react';
 import { Project, Section, Task } from './types';
-import { getProjects, getSections, getTasks } from './airtable';
+import { LoadSections } from './repositories/load-sections';
+import { LoadTasks } from './repositories/load-tasks';
+import { CreateProject } from './repositories/create-project';
+import { getJsonProjectRepository } from './infrastructure/json.projects.repository';
+import { load_projects, load_sections, laod_tasks, create_project } from './projects.controller';
 
 const LocalStorage: Storage | null = (typeof window !== "undefined") ? localStorage : null;
 
-
-const initialProjects: Project[] = [
-  {
-    id: '1',
-    title: "Rénovation Maison",
-    description: "Travaux de rénovation du salon et de la cuisine",
-    progress: 35,
-    sections: [
-      {
-        id: '1',
-        title: "Travaux",
-        tasks: [
-          { id: '1', title: "Acheter peinture", completed: true },
-          { id: '2', title: "Retirer ancien papier peint", completed: true },
-          { id: '3', title: "Peindre les murs", completed: false },
-          { id: '4', title: "Installer les nouvelles étagères", completed: false }
-        ]
-      },
-      {
-        id: '2',
-        title: "Dépenses",
-        tasks: [
-          { id: '5', title: "Peinture: 120€", completed: true },
-          { id: '6', title: "Outils: 85€", completed: true },
-          { id: '7', title: "Étagères: 200€", completed: false }
-        ]
-      }
-    ]
-  },
-  {
-    id: '2',
-    title: "Développement Site Web",
-    description: "Création de mon site personnel",
-    progress: 60,
-    sections: [
-      {
-        id: '3',
-        title: "Design",
-        tasks: [
-          { id: '8', title: "Créer maquette", completed: true },
-          { id: '9', title: "Valider design", completed: true }
-        ]
-      },
-      {
-        id: '4',
-        title: "Développement",
-        tasks: [
-          { id: '10', title: "Intégration HTML/CSS", completed: true },
-          { id: '11', title: "Développer back-end", completed: false },
-          { id: '12', title: "Tests utilisateurs", completed: false }
-        ]
-      }
-    ]
-  },
-  {
-    id: '3',
-    title: "Organisation Vacances",
-    description: "Planification des vacances d'été",
-    progress: 20,
-    sections: [
-      {
-        id: '5',
-        title: "Réservations",
-        tasks: [
-          { id: '13', title: "Réserver vol", completed: true },
-          { id: '14', title: "Réserver hôtel", completed: false },
-          { id: '15', title: "Louer voiture", completed: false }
-        ]
-      },
-      {
-        id: '6',
-        title: "Budget",
-        tasks: [
-          { id: '16', title: "Vol: 350€", completed: true },
-          { id: '17', title: "Hébergement: 800€", completed: false },
-          { id: '18', title: "Activités: 400€", completed: false }
-        ]
-      }
-    ]
-  }
-];
 
 // Styles globaux avec Tailwind
 const styles = {
@@ -139,8 +62,7 @@ const Dashboard: React.FC = () => {
   const fetchProjects = async () => {
     try {
       // setLoading(true);
-      const projectData = await getProjects();
-      setProjects(projectData);
+      setProjects(await load_projects());
       // setLoading(false);
     } catch (err) {
       // setError('Erreur lors du chargement des projets');
@@ -154,8 +76,7 @@ const Dashboard: React.FC = () => {
       // setLoading(true);
       
       // Récupérer les sections pour ce projet
-      const sectionData = await getSections(projectId);
-      setSections(sectionData);
+      setSections(await load_sections(projectId) ?? []);
       
       // Récupérer toutes les tâches
       const tasks: Task[] = [] //  TODO await getTasks(sectionData.id);
@@ -193,6 +114,7 @@ const Dashboard: React.FC = () => {
     setProjects([...projects, projectToAdd]);
     setNewProject({ title: '', description: '' });
     setIsAddingProject(false);
+    create_project(projectToAdd)
   };
 
   // Ajout d'une nouvelle section à un projet

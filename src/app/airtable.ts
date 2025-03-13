@@ -4,7 +4,7 @@ import { Project, Section, Task } from "./types";
 Airtable.configure({
   apiKey: process.env.AIR_TABLE_TOKEN});
 
-const base = Airtable.base(process.env.AIR_TABLE_BASE_ID || '');
+const base = Airtable.base(process.env.AIR_TABLE_BASE_ID || '');
 
 const PROJECTS_TABLE = "projects";
 const SECTIONS_TABLE = "sections";
@@ -12,22 +12,7 @@ const TASKS_TABLE = "tasks";
 
 
 // GET
-export async function getProjects(): Promise<Project[]> {
-  const records = await base(PROJECTS_TABLE).select().all();
-  const projects = records.map(
-    (p) =>
-      ({
-        id: p.id,
-        ...p.fields,
-      } as Project)
-  );
 
-  projects.forEach(async (p) => p.sections = await getSections(p.id))
-  
-  console.log(projects);
-  
-  return projects;
-};
 
 export const getSections = async (projectId?: string): Promise<Section[]> => {
   let query = base(SECTIONS_TABLE).select();
