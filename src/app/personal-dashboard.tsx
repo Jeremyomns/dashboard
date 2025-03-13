@@ -708,7 +708,7 @@ const Dashboard: React.FC = () => {
   return (
     <div className={styles.container}>
       <header className={styles.header}>
-        <h1 className={styles.title}>Dashboard Personnel de Jeremy</h1>
+        <h1 className={styles.title}>Dashboard Personnel</h1>
         <p className={styles.subtitle}>Gérez vos projets et suivez votre progression</p>
       </header>
       
