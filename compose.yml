@@ -1,0 +1,8 @@
+services:
+  app:
+    container_name: "dashbord"
+    build:
+      context: ./
+      target: dev
+    ports:
+      - "3000:3000"
