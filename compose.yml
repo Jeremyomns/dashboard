@@ -3,6 +3,6 @@ services:
     container_name: "dashbord"
     build:
       context: ./
-      target: dev
+      target: production
     ports:
       - "3000:3000"
