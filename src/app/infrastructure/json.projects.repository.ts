@@ -1,12 +1,14 @@
 "use server"
 
 import { CreateProject } from "../repositories/create-project";
+import { CreateSection } from "../repositories/create-section";
+import { CreateTask } from "../repositories/create-task";
 import { LoadProjects } from "../repositories/load-projects";
 import { LoadSections } from "../repositories/load-sections";
 import { LoadTasks } from "../repositories/load-tasks";
-import { Project, Section, Task } from "../types";
+import { Project, projects_with_new_section, projects_with_new_task, Section, Task } from "../types";
 import * as fs from 'fs';
-
+/*
 const _projects: Project[] = [
   {
     id: '1',
@@ -87,20 +89,21 @@ const _projects: Project[] = [
     ]
   }
 ];
+*/
 
-
-class JsonProjectRepository implements 
-LoadProjects,
-LoadSections,
-LoadTasks,
-CreateProject
-{
+class JsonProjectRepository implements
+  LoadProjects,
+  LoadSections,
+  LoadTasks,
+  CreateProject,
+  CreateSection,
+  CreateTask {
 
   constructor(private readonly path: string) {
-    if(!fs.existsSync(path)) 
+    if (!fs.existsSync(path))
       fs.writeFileSync(path, JSON.stringify([]))
   }
-
+  
   private save_in_file(projects: Project[]): Promise<void> {
     return fs.promises.writeFile(this.path, JSON.stringify(projects))
   }
@@ -113,12 +116,18 @@ CreateProject
   load_all_projects(): Promise<Project[]> {
     return this.load_projects_from_json_file()
   }
-  
+
+  async load_project_by_id(id: string): Promise<Project|undefined> {
+    const projects = await this.load_projects_from_json_file()
+    return projects.find(p => p.id === id)
+  }
+
+
   async load_sections(project_id?: string): Promise<Section[]> {
     const projects = await this.load_all_projects();
     if (!project_id) return Promise.resolve(projects.flatMap(p => p.sections ?? []))
-    
-      return Promise.resolve(
+
+    return Promise.resolve(
       projects.find(p => p.id === project_id)?.sections ?? []
     )
   }
@@ -133,6 +142,22 @@ CreateProject
     projects.push(project);
     return this.save_in_file(projects)
   }
-}
 
-export const getJsonProjectRepository = async(path: string) => new JsonProjectRepository(path)
+  async create_section(section: Section): Promise<void> {
+    return this.save_in_file(
+      projects_with_new_section(
+        await this.load_projects_from_json_file(),
+        section
+      ))
+  }
+
+  async create_task(task: Task): Promise<void> {
+    return this.save_in_file(
+      projects_with_new_task(
+        await this.load_projects_from_json_file(),
+        task
+      )
+    )
+  }
+}
+export const getJsonProjectRepository = async (path: string) => new JsonProjectRepository(path)

@@ -2,12 +2,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { Plus, Trash2, Edit2, AlertCircle, CheckCircle, FileText, Home, Settings, DollarSign, PlusCircle } from 'lucide-react';
-import { Project, Section, Task } from './types';
-import { LoadSections } from './repositories/load-sections';
-import { LoadTasks } from './repositories/load-tasks';
-import { CreateProject } from './repositories/create-project';
-import { getJsonProjectRepository } from './infrastructure/json.projects.repository';
-import { load_projects, load_sections, laod_tasks, create_project } from './projects.controller';
+import { empty_project, empty_section, empty_task, get_project_in_projects_by_id, get_section_in_projects_by_id, get_task_in_projects_by_id, Project, projects_with_new_section, projects_with_new_task, projects_with_updated_project, projects_with_updated_section, Section, Task } from './types';
+import { load_projects, create_project, create_section_in_project, create_task_in_section } from './projects.controller';
 
 const LocalStorage: Storage | null = (typeof window !== "undefined") ? localStorage : null;
 
@@ -39,15 +35,15 @@ const Dashboard: React.FC = () => {
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [isAddingProject, setIsAddingProject] = useState<boolean>(false);
-  const [newProject, setNewProject] = useState({ title: '', description: '' });
+  const [newProject, setNewProject] = useState(empty_project());
   const [editMode, setEditMode] = useState<{active: boolean, type: 'project'|'section'|'task'|null, id: string|null}>({ active: false, type: null, id: null });
   const [editText, setEditText] = useState('');
   const [isAddingSection, setIsAddingSection] = useState(false);
-  const [newSection, setNewSection] = useState({ title: '' });
-  const [sections, setSections] = useState<Section[]>([]);
+  const [newSection, setNewSection] = useState<Section>(empty_section());
   const [isAddingTask, setIsAddingTask] = useState<{ active: boolean, sectionId: string | null }>({ active: false, sectionId: null });
-  const [newTask, setNewTask] = useState({ title: '' });
-  const [tasks, setTasks] = useState<Task[]>([]);
+  const [newTask, setNewTask] = useState(empty_task());
+  const [isLoading, setLoading] = useState(true)
+  const [error, setError] = useState<string|null>(null)
 
   useEffect(() => {
     fetchProjects();
@@ -55,37 +51,15 @@ const Dashboard: React.FC = () => {
 
   useEffect(() => {
     if (selectedProject) {
-      //fetchSectionsAndTasks(selectedProject.id);
     }
   }, [selectedProject]);
 
   const fetchProjects = async () => {
     try {
-      // setLoading(true);
-      setProjects(await load_projects());
-      // setLoading(false);
+      setLoading(true);
+      setProjects(await load_projects().finally(() => setLoading(false)))
     } catch (err) {
-      // setError('Erreur lors du chargement des projets');
-      // setLoading(false);
-      console.error(err);
-    }
-  };
-
-  const fetchSectionsAndTasks = async (projectId: string) => {
-    try {
-      // setLoading(true);
-      
-      // Récupérer les sections pour ce projet
-      setSections(await load_sections(projectId) ?? []);
-      
-      // Récupérer toutes les tâches
-      const tasks: Task[] = [] //  TODO await getTasks(sectionData.id);
-
-      setTasks(tasks);
-      // setLoading(false);
-    } catch (err) {
-      // setError('Erreur lors du chargement des détails du projet');
-      // setLoading(false);
+      setError('Erreur lors du chargement des projets');
       console.error(err);
     }
   };
@@ -99,83 +73,84 @@ const Dashboard: React.FC = () => {
   };
 
   // Ajout d'un nouveau projet
-  const handleAddProject = () => {
+  const handleAddProject = async () => {
     if (newProject.title.trim() === '') return;
     
     const newId = Math.max(0, ...projects.map(p => +p.id)) + 1;
     const projectToAdd: Project = {
+      ...empty_project(),
       id: newId.toString(),
       title: newProject.title,
       description: newProject.description,
-      progress: 0,
-      sections: []
     };
     
+    setLoading(true)
+    try {
+      await create_project(projectToAdd).finally(() => setLoading(false))
+    } catch(e) {
+      setError('Erreur lors de la création du projet')
+      console.error(e);
+    }
     setProjects([...projects, projectToAdd]);
-    setNewProject({ title: '', description: '' });
+
     setIsAddingProject(false);
-    create_project(projectToAdd)
+    setNewProject(empty_project());
   };
 
   // Ajout d'une nouvelle section à un projet
-  const handleAddSection = () => {
+  const handleAddSection = async () => {
     if (newSection.title.trim() === '' || !selectedProject) return;
-    
+
+    // assume ids are int
     const newId = Math.max(0, ...projects.flatMap(p => p.sections?.map(s => +s.id) ?? [])) + 1;
-    const updatedProjects: Project[] = projects.map(project => {
-      if (project.id === selectedProject.id) {
-        return {
-          ...project,
-          sections: [...project.sections ?? [], {
-            id: newId.toString(),
-            title: newSection.title,
-            tasks: []
-          }]
-        } satisfies Project;
-      }
-      return project;
-    });
-    
+    const section_to_add: Section = {
+      id: newId.toString(),
+      title: newSection.title,
+      tasks: []
+    }
+    setLoading(true)
+    try {
+      await create_section_in_project(section_to_add).finally(() => setLoading(false))
+    } catch(e) {
+      setError('Erreur lors de la création de la section')
+      return;
+    }
+
+    const updatedProjects: Project[] = projects_with_new_section(projects, section_to_add)
+
     setProjects(updatedProjects);
     setSelectedProject(updatedProjects.find(p => p.id === selectedProject.id) ?? null);
-    setNewSection({ title: '' });
+    setNewSection(empty_section());
     setIsAddingSection(false);
   };
 
   // Ajout d'une nouvelle tâche à une section
-  const handleAddTask = (sectionId: string) => {
+  const handleAddTask = async (sectionId: string) => {
     if (newTask.title.trim() === '' || !selectedProject) return;
     
     const newId = Math.max(0, ...projects.flatMap(p => p.sections?.flatMap(s => s.tasks?.map(t => +t.id) ?? []) ?? [])) + 1;
-    const updatedProjects: Project[] = projects.map(project => {
-      if (project.id === selectedProject.id) {
-        return {
-          ...project,
-          sections: project.sections?.map(section => {
-            if (section.id === sectionId) {
-              return {
-                ...section,
-                tasks: [...section.tasks ?? [], {
-                  id: newId.toString(),
-                  title: newTask.title,
-                  completed: false
-                }]
-              } satisfies Section;
-            }
-            return section;
-          })
-        } satisfies Project;
-      }
-      return project;
-    });
+    const task_to_add: Task = {
+      ...empty_task(),
+      id: newId.toString(),
+      title: newTask.title,
+      completed: false
+    }
+    const updatedProjects: Project[] = projects_with_new_task(projects, task_to_add)
     
     const updatedProject: Project | null = updatedProjects.find(p => p.id === selectedProject.id) ?? null;
     if (!updatedProject) return;
     updatedProject.progress = calculateProgress(updatedProject);
     
+    setLoading(true)
+    try {
+      await create_task_in_section(task_to_add).finally(() => setLoading(false))
+    } catch(e) {
+      setError('Erreur lors de la création de la section')
+      return;
+    }
     setProjects(updatedProjects);
     setSelectedProject(updatedProject);
-    setNewTask({ title: '' });
+    setNewTask(empty_task);
     setIsAddingTask({ active: false, sectionId: null });
   };
 
@@ -277,7 +252,7 @@ const Dashboard: React.FC = () => {
   };
 
   const saveEdit = () => {
-    if (editText.trim() === '') {
+    if ((editText?.trim() ?? '') === '') {
       setEditMode({ active: false, type: null, id: null });
       return;
     }
@@ -286,55 +261,28 @@ const Dashboard: React.FC = () => {
 
     switch (editMode.type) {
       case 'project':
-        updatedProjects = projects.map(project => {
-          if (project.id === editMode.id) {
-            return { ...project, title: editText };
-          }
-          return project;
-        });
+        const p = get_project_in_projects_by_id(projects, editMode.id)
+        if (p) {
+          p.title = editText
+          updatedProjects = projects_with_updated_project(projects, p)
+        }
         break;
 
       case 'section':
-        updatedProjects = projects.map(project => {
-          if (project.id === selectedProject?.id) {
-            return {
-              ...project,
-              sections: project.sections?.map(section => {
-                if (section.id === editMode.id) {
-                  return { ...section, title: editText } satisfies Section;
-                }
-                return section;
-              })
-            } satisfies Project;
-          }
-          return project;
-        });
+        const s = get_section_in_projects_by_id(projects, editMode.id)
+        if (s) {
+          s.title = editText
+          updatedProjects = projects_with_updated_section(projects, s)
+        }
         break;
 
       case 'task':
         const [sectionId, taskId] = editMode.id?.split('-') ?? [null, null];
-        updatedProjects = projects.map(project => {
-          if (project.id === selectedProject?.id) {
-            return {
-              ...project,
-              sections: project.sections?.map(section => {
-                if (section.id === sectionId) {
-                  return {
-                    ...section,
-                    tasks: section.tasks?.map(task => {
-                      if (task?.id === taskId) {
-                        return { ...task, title: editText } satisfies Task;
-                      }
-                      return task;
-                    })
-                  };
-                }
-                return section;
-              })
-            } satisfies Project;
-          }
-          return project;
-        });
+        const t = get_task_in_projects_by_id(projects, taskId)
+        if(t) {
+          t.title = editText
+          updatedProjects = projects_with_updated_task(projects, t)
+        }
         break;
 
       default:
@@ -384,7 +332,7 @@ const Dashboard: React.FC = () => {
               className={`${styles.button} ${styles.secondaryButton}`}
               onClick={() => {
                 setIsAddingProject(false);
-                setNewProject({ title: '', description: '' });
+                setNewProject(empty_project());
               }}
             >
               Annuler
@@ -551,7 +499,7 @@ const Dashboard: React.FC = () => {
                 className={`${styles.button} ${styles.secondaryButton}`}
                 onClick={() => {
                   setIsAddingSection(false);
-                  setNewSection({ title: '' });
+                  setNewSection(empty_section());
                 }}
               >
                 Annuler
