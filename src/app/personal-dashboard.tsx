@@ -2,8 +2,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { Plus, Trash2, Edit2, AlertCircle, CheckCircle, FileText, Home, Settings, DollarSign, PlusCircle } from 'lucide-react';
-import { empty_project, empty_section, empty_task, get_project_in_projects_by_id, get_section_in_projects_by_id, get_task_in_projects_by_id, Project, projects_with_new_section, projects_with_new_task, projects_with_updated_project, projects_with_updated_section, Section, Task } from './types';
-import { load_projects, create_project, create_section_in_project, create_task_in_section } from './projects.controller';
+import { empty_project, empty_section, empty_task, get_project_in_projects_by_id, get_section_in_projects_by_id, get_task_in_projects_by_id, Project, project_with_updated_section, project_with_updated_task, projects_with_new_section, projects_with_new_task, projects_with_updated_project, projects_with_updated_section, projects_with_updated_task, Section, Task } from './types';
+import { load_projects, save_project, create_section_in_project, create_task_in_section } from './projects.controller';
+import { updateProject } from './airtable';
 
 const LocalStorage: Storage | null = (typeof window !== "undefined") ? localStorage : null;
 
@@ -36,14 +37,14 @@ const Dashboard: React.FC = () => {
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [isAddingProject, setIsAddingProject] = useState<boolean>(false);
   const [newProject, setNewProject] = useState(empty_project());
-  const [editMode, setEditMode] = useState<{active: boolean, type: 'project'|'section'|'task'|null, id: string|null}>({ active: false, type: null, id: null });
+  const [editMode, setEditMode] = useState<{ active: boolean, type: 'project' | 'section' | 'task' | null, id: string | null }>({ active: false, type: null, id: null });
   const [editText, setEditText] = useState('');
   const [isAddingSection, setIsAddingSection] = useState(false);
   const [newSection, setNewSection] = useState<Section>(empty_section());
   const [isAddingTask, setIsAddingTask] = useState<{ active: boolean, sectionId: string | null }>({ active: false, sectionId: null });
   const [newTask, setNewTask] = useState(empty_task());
   const [isLoading, setLoading] = useState(true)
-  const [error, setError] = useState<string|null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     fetchProjects();
@@ -75,7 +76,7 @@ const Dashboard: React.FC = () => {
   // Ajout d'un nouveau projet
   const handleAddProject = async () => {
     if (newProject.title.trim() === '') return;
-    
+
     const newId = Math.max(0, ...projects.map(p => +p.id)) + 1;
     const projectToAdd: Project = {
       ...empty_project(),
@@ -83,11 +84,11 @@ const Dashboard: React.FC = () => {
       title: newProject.title,
       description: newProject.description,
     };
-    
+
     setLoading(true)
     try {
-      await create_project(projectToAdd).finally(() => setLoading(false))
-    } catch(e) {
+      await save_project(projectToAdd).finally(() => setLoading(false))
+    } catch (e) {
       setError('Erreur lors de la création du projet')
       console.error(e);
     }
@@ -111,7 +112,7 @@ const Dashboard: React.FC = () => {
     setLoading(true)
     try {
       await create_section_in_project(section_to_add).finally(() => setLoading(false))
-    } catch(e) {
+    } catch (e) {
       setError('Erreur lors de la création de la section')
       return;
     }
@@ -127,7 +128,7 @@ const Dashboard: React.FC = () => {
   // Ajout d'une nouvelle tâche à une section
   const handleAddTask = async (sectionId: string) => {
     if (newTask.title.trim() === '' || !selectedProject) return;
-    
+
     const newId = Math.max(0, ...projects.flatMap(p => p.sections?.flatMap(s => s.tasks?.map(t => +t.id) ?? []) ?? [])) + 1;
     const task_to_add: Task = {
       ...empty_task(),
@@ -136,15 +137,15 @@ const Dashboard: React.FC = () => {
       completed: false
     }
     const updatedProjects: Project[] = projects_with_new_task(projects, task_to_add)
-    
+
     const updatedProject: Project | null = updatedProjects.find(p => p.id === selectedProject.id) ?? null;
     if (!updatedProject) return;
     updatedProject.progress = calculateProgress(updatedProject);
-    
+
     setLoading(true)
     try {
       await create_task_in_section(task_to_add).finally(() => setLoading(false))
-    } catch(e) {
+    } catch (e) {
       setError('Erreur lors de la création de la section')
       return;
     }
@@ -172,11 +173,11 @@ const Dashboard: React.FC = () => {
       }
       return project;
     });
-    
+
     const updatedProject = updatedProjects.find(p => p.id === selectedProject?.id);
-    if(!updatedProject) return;
+    if (!updatedProject) return;
     updatedProject.progress = calculateProgress(updatedProject);
-    
+
     setProjects(updatedProjects);
     setSelectedProject(updatedProject);
   };
@@ -200,11 +201,11 @@ const Dashboard: React.FC = () => {
       }
       return project;
     });
-    
+
     const updatedProject = updatedProjects.find(p => p.id === selectedProject?.id);
     if (!updatedProject) return;
     updatedProject.progress = calculateProgress(updatedProject);
-    
+
     setProjects(updatedProjects);
     setSelectedProject(updatedProject);
   };
@@ -236,11 +237,11 @@ const Dashboard: React.FC = () => {
       }
       return project;
     });
-    
+
     const updatedProject = updatedProjects.find(p => p.id === selectedProject?.id);
-    if(!updatedProject) return;
+    if (!updatedProject) return;
     updatedProject.progress = calculateProgress(updatedProject);
-    
+
     setProjects(updatedProjects);
     setSelectedProject(updatedProject);
   };
@@ -251,20 +252,22 @@ const Dashboard: React.FC = () => {
     setEditText(currentText);
   };
 
-  const saveEdit = () => {
+  const saveEdit = async () => {
     if ((editText?.trim() ?? '') === '') {
       setEditMode({ active: false, type: null, id: null });
       return;
     }
 
     let updatedProjects = [...projects];
+    let updatedProject = selectedProject!;
 
     switch (editMode.type) {
       case 'project':
         const p = get_project_in_projects_by_id(projects, editMode.id)
         if (p) {
           p.title = editText
-          updatedProjects = projects_with_updated_project(projects, p)
+          updatedProject = p
+          await save_project(p)
         }
         break;
 
@@ -272,16 +275,16 @@ const Dashboard: React.FC = () => {
         const s = get_section_in_projects_by_id(projects, editMode.id)
         if (s) {
           s.title = editText
-          updatedProjects = projects_with_updated_section(projects, s)
+          updatedProject = project_with_updated_section(updatedProject, s)
         }
         break;
 
       case 'task':
         const [sectionId, taskId] = editMode.id?.split('-') ?? [null, null];
         const t = get_task_in_projects_by_id(projects, taskId)
-        if(t) {
+        if (t) {
           t.title = editText
-          updatedProjects = projects_with_updated_task(projects, t)
+          updatedProject = project_with_updated_task(updatedProject, t)
         }
         break;
 
@@ -289,12 +292,13 @@ const Dashboard: React.FC = () => {
         break;
     }
 
-    setProjects(updatedProjects);
-    
+    save_project(updatedProject)
+    setProjects(projects_with_updated_project(projects, updatedProject));
+
     if (selectedProject) {
       setSelectedProject(updatedProjects.find(p => p.id === selectedProject.id) ?? null);
     }
-    
+
     setEditMode({ active: false, type: null, id: null });
   };
 
@@ -303,7 +307,7 @@ const Dashboard: React.FC = () => {
     <div className="p-4">
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-xl font-semibold">Mes Projets</h2>
-        <button 
+        <button
           className={`${styles.button} ${styles.primaryButton}`}
           onClick={() => setIsAddingProject(true)}
         >
@@ -319,16 +323,16 @@ const Dashboard: React.FC = () => {
             placeholder="Titre du projet"
             className={`${styles.input} mb-3`}
             value={newProject.title}
-            onChange={(e) => setNewProject({...newProject, title: e.target.value})}
+            onChange={(e) => setNewProject({ ...newProject, title: e.target.value })}
           />
           <textarea
             placeholder="Description (optionnelle)"
             className={`${styles.input} mb-3`}
             value={newProject.description}
-            onChange={(e) => setNewProject({...newProject, description: e.target.value})}
+            onChange={(e) => setNewProject({ ...newProject, description: e.target.value })}
           />
           <div className="flex justify-end space-x-2">
-            <button 
+            <button
               className={`${styles.button} ${styles.secondaryButton}`}
               onClick={() => {
                 setIsAddingProject(false);
@@ -337,7 +341,7 @@ const Dashboard: React.FC = () => {
             >
               Annuler
             </button>
-            <button 
+            <button
               className={`${styles.button} ${styles.primaryButton}`}
               onClick={handleAddProject}
             >
@@ -349,7 +353,7 @@ const Dashboard: React.FC = () => {
 
       <div className={styles.gridLayout}>
         {projects.map(project => (
-          <div 
+          <div
             key={project.id}
             className={styles.card}
             onClick={() => setSelectedProject(project)}
@@ -378,19 +382,19 @@ const Dashboard: React.FC = () => {
                   <span className="text-sm font-medium">{project.progress}%</span>
                 </div>
                 <div className={styles.progressBar}>
-                  <div 
+                  <div
                     className={styles.progressBarFill}
-                    style={{ 
+                    style={{
                       width: `${project.progress}%`,
-                      backgroundColor: 
+                      backgroundColor:
                         project.progress < 30 ? '#f87171' :
-                        project.progress < 70 ? '#facc15' : 
-                        '#4ade80'
+                          project.progress < 70 ? '#facc15' :
+                            '#4ade80'
                     }}
                   />
                 </div>
               </div>
-              
+
               <div className="mt-3 text-sm text-gray-600">
                 <div className="flex items-center">
                   <FileText size={14} className="mr-1" />
@@ -410,7 +414,7 @@ const Dashboard: React.FC = () => {
 
     return (
       <div className="p-4">
-        <button 
+        <button
           className={`${styles.button} ${styles.secondaryButton} mb-4`}
           onClick={() => setSelectedProject(null)}
         >
@@ -430,7 +434,7 @@ const Dashboard: React.FC = () => {
                   onBlur={saveEdit}
                   onKeyPress={(e) => e.key === 'Enter' && saveEdit()}
                 />
-                <button 
+                <button
                   className={`${styles.button} ${styles.primaryButton}`}
                   onClick={saveEdit}
                 >
@@ -440,7 +444,7 @@ const Dashboard: React.FC = () => {
             ) : (
               <div className="flex items-center">
                 <h2 className="text-xl font-semibold mr-2">{selectedProject.title}</h2>
-                <button 
+                <button
                   className="text-gray-500 hover:text-blue-500"
                   onClick={() => startEdit('project', selectedProject.id, selectedProject.title)}
                 >
@@ -460,14 +464,14 @@ const Dashboard: React.FC = () => {
               <span className="text-sm font-medium">{selectedProject.progress}%</span>
             </div>
             <div className={styles.progressBar}>
-              <div 
+              <div
                 className={styles.progressBarFill}
-                style={{ 
+                style={{
                   width: `${selectedProject.progress}%`,
-                  backgroundColor: 
+                  backgroundColor:
                     selectedProject.progress < 30 ? '#f87171' :
-                    selectedProject.progress < 70 ? '#facc15' : 
-                    '#4ade80'
+                      selectedProject.progress < 70 ? '#facc15' :
+                        '#4ade80'
                 }}
               />
             </div>
@@ -476,7 +480,7 @@ const Dashboard: React.FC = () => {
 
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-lg font-medium">Sections</h3>
-          <button 
+          <button
             className={`${styles.button} ${styles.primaryButton}`}
             onClick={() => setIsAddingSection(true)}
           >
@@ -492,10 +496,10 @@ const Dashboard: React.FC = () => {
               placeholder="Titre de la section"
               className={`${styles.input} mb-3`}
               value={newSection.title}
-              onChange={(e) => setNewSection({...newSection, title: e.target.value})}
+              onChange={(e) => setNewSection({ ...newSection, title: e.target.value })}
             />
             <div className="flex justify-end space-x-2">
-              <button 
+              <button
                 className={`${styles.button} ${styles.secondaryButton}`}
                 onClick={() => {
                   setIsAddingSection(false);
@@ -504,7 +508,7 @@ const Dashboard: React.FC = () => {
               >
                 Annuler
               </button>
-              <button 
+              <button
                 className={`${styles.button} ${styles.primaryButton}`}
                 onClick={handleAddSection}
               >
@@ -528,7 +532,7 @@ const Dashboard: React.FC = () => {
                     onBlur={saveEdit}
                     onKeyPress={(e) => e.key === 'Enter' && saveEdit()}
                   />
-                  <button 
+                  <button
                     className={`${styles.button} ${styles.primaryButton}`}
                     onClick={saveEdit}
                   >
@@ -538,7 +542,7 @@ const Dashboard: React.FC = () => {
               ) : (
                 <div className="flex items-center">
                   <h4 className="font-medium mr-2">{section.title}</h4>
-                  <button 
+                  <button
                     className="text-gray-500 hover:text-blue-500"
                     onClick={() => startEdit('section', section.id, section.title)}
                   >
@@ -547,7 +551,7 @@ const Dashboard: React.FC = () => {
                 </div>
               )}
               <div>
-                <button 
+                <button
                   className="text-gray-500 hover:text-red-500 ml-2"
                   onClick={() => handleDeleteSection(section.id)}
                 >
@@ -555,7 +559,7 @@ const Dashboard: React.FC = () => {
                 </button>
               </div>
             </div>
-            
+
             <ul className="divide-y">
               {section.tasks?.map(task => (
                 <li key={task.id} className="p-3 flex items-center justify-between hover:bg-gray-50">
@@ -566,7 +570,7 @@ const Dashboard: React.FC = () => {
                       onChange={() => handleToggleTask(section.id, task.id)}
                       className="mr-3 h-4 w-4 rounded border-gray-300 text-blue-500 focus:ring-blue-500"
                     />
-                    
+
                     {editMode.active && editMode.type === 'task' && editMode.id === `${section.id}-${task.id}` ? (
                       <div className="flex items-center space-x-2">
                         <input
@@ -578,7 +582,7 @@ const Dashboard: React.FC = () => {
                           onBlur={saveEdit}
                           onKeyPress={(e) => e.key === 'Enter' && saveEdit()}
                         />
-                        <button 
+                        <button
                           className={`${styles.button} ${styles.primaryButton}`}
                           onClick={saveEdit}
                         >
@@ -591,15 +595,15 @@ const Dashboard: React.FC = () => {
                       </span>
                     )}
                   </div>
-                  
+
                   <div className="flex space-x-1">
-                    <button 
+                    <button
                       className="text-gray-500 hover:text-blue-500"
                       onClick={() => startEdit('task', `${section.id}-${task.id}`, task.title)}
                     >
                       <Edit2 size={14} />
                     </button>
-                    <button 
+                    <button
                       className="text-gray-500 hover:text-red-500"
                       onClick={() => handleDeleteTask(section.id, task.id)}
                     >
@@ -609,7 +613,7 @@ const Dashboard: React.FC = () => {
                 </li>
               ))}
             </ul>
-            
+
             {isAddingTask.active && isAddingTask.sectionId === section.id ? (
               <div className="p-3 border-t">
                 <div className="flex items-center">
@@ -618,17 +622,17 @@ const Dashboard: React.FC = () => {
                     placeholder="Nouvelle tâche"
                     className={`${styles.input} mr-2`}
                     value={newTask.title}
-                    onChange={(e) => setNewTask({...newTask, title: e.target.value})}
+                    onChange={(e) => setNewTask({ ...newTask, title: e.target.value })}
                     onKeyPress={(e) => e.key === 'Enter' && handleAddTask(section.id)}
                   />
                   <div className="flex space-x-1">
-                    <button 
+                    <button
                       className={`${styles.button} ${styles.secondaryButton}`}
                       onClick={() => setIsAddingTask({ active: false, sectionId: null })}
                     >
                       Annuler
                     </button>
-                    <button 
+                    <button
                       className={`${styles.button} ${styles.primaryButton}`}
                       onClick={() => handleAddTask(section.id)}
                     >
@@ -639,7 +643,7 @@ const Dashboard: React.FC = () => {
               </div>
             ) : (
               <div className="p-3 border-t">
-                <button 
+                <button
                   className="flex items-center text-blue-500 hover:text-blue-700"
                   onClick={() => setIsAddingTask({ active: true, sectionId: section.id })}
                 >
@@ -659,7 +663,7 @@ const Dashboard: React.FC = () => {
         <h1 className={styles.title}>Dashboard Personnel</h1>
         <p className={styles.subtitle}>Gérez vos projets et suivez votre progression</p>
       </header>
-      
+
       <main>
         {selectedProject ? renderProjectView() : renderHomeView()}
       </main>

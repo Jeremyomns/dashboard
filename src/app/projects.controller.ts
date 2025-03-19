@@ -1,7 +1,7 @@
 'use server'
 
 import { getJsonProjectRepository } from "./infrastructure/json.projects.repository";
-import { CreateProject } from "./repositories/create-project";
+import { SaveProject } from "./repositories/save-project";
 import { CreateSection } from "./repositories/create-section";
 import { CreateTask } from "./repositories/create-task";
 import { LoadProjects } from "./repositories/load-projects";
@@ -14,7 +14,7 @@ const JsonProjectRepository = await getJsonProjectRepository('projects.json');
 const _load_projects: LoadProjects = JsonProjectRepository;
 const _load_sections: LoadSections = JsonProjectRepository;
 const _load_tasks: LoadTasks = JsonProjectRepository;
-const _create_project: CreateProject = JsonProjectRepository;
+const _create_project: SaveProject = JsonProjectRepository;
 const _create_section: CreateSection = JsonProjectRepository;
 const _create_task: CreateTask = JsonProjectRepository;
 
@@ -27,8 +27,8 @@ export async function load_project_by_id(id: string): Promise<Project | undefine
   return _load_projects.load_project_by_id(id);
 }
 
-export async function create_project(project: Project): Promise<void> {
-  return _create_project.create_project(project)
+export async function save_project(project: Project): Promise<void> {
+  return _create_project.save_project(project)
 }
 
 

@@ -76,9 +76,8 @@ export function projects_with_new_task(projects: Project[], added: Task) {
 }
 
 export function projects_with_updated_task(projects: Project[], updated: Task): Project[] {
-  const s = get_section_in_projects_by_id(projects, updated.id);
-  const p = get_project_in_projects_by_id(projects, s?.project_id ?? null);
-  if (!s || !p) return projects
+  const s = get_section_in_projects_by_id(projects, updated.section_id ?? null);
+  if (!updated || !s) return projects
 
   return projects_with_updated_section(projects, section_with_updated_task(s, updated))
 
@@ -100,6 +99,11 @@ export function project_with_updated_section(project: Project, updated: Section)
       ? project.sections.map(s => s.id === updated.id ? updated : s)
       : [updated]
   } satisfies Project
+}
+
+export function project_with_updated_task(project: Project, updated: Task): Project {
+  const s = project.sections?.find(s => s.id === updated.id);
+  return project_with_updated_section(project, section_with_updated_task(s, updated))
 }
 
 export function projects_with_updated_project(projects: Project[], updated_project: Project): Project[] {
@@ -140,9 +144,9 @@ export function get_section_in_projects_by_id(projets: Project[], id: string | n
   else return projets.flatMap(p => p.sections ?? []).find(s => s.id === id);
 }
 
-export function get_task_in_projects_by_id(projets: Project[], id: string | null): Section | undefined {
+export function get_task_in_projects_by_id(projets: Project[], id: string | null): Task | undefined {
   if (!id) return undefined
   return projets
     .flatMap(p => p.sections?.flatMap(s => s.tasks ?? []) ?? [])
-    .find(t => t?.id === id);
+    .find(t => t?.id === id)
 }

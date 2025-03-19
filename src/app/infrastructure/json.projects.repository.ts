@@ -1,6 +1,6 @@
 "use server"
 
-import { CreateProject } from "../repositories/create-project";
+import { SaveProject } from "../repositories/save-project";
 import { CreateSection } from "../repositories/create-section";
 import { CreateTask } from "../repositories/create-task";
 import { LoadProjects } from "../repositories/load-projects";
@@ -95,7 +95,7 @@ class JsonProjectRepository implements
   LoadProjects,
   LoadSections,
   LoadTasks,
-  CreateProject,
+  SaveProject,
   CreateSection,
   CreateTask {
 
@@ -103,7 +103,7 @@ class JsonProjectRepository implements
     if (!fs.existsSync(path))
       fs.writeFileSync(path, JSON.stringify([]))
   }
-  
+
   private save_in_file(projects: Project[]): Promise<void> {
     return fs.promises.writeFile(this.path, JSON.stringify(projects))
   }
@@ -117,7 +117,7 @@ class JsonProjectRepository implements
     return this.load_projects_from_json_file()
   }
 
-  async load_project_by_id(id: string): Promise<Project|undefined> {
+  async load_project_by_id(id: string): Promise<Project | undefined> {
     const projects = await this.load_projects_from_json_file()
     return projects.find(p => p.id === id)
   }
@@ -137,8 +137,8 @@ class JsonProjectRepository implements
     return (await this.load_sections(section_id)).flatMap(s => s.tasks ?? [])
   }
 
-  async create_project(project: Project): Promise<void> {
-    const projects = await this.load_all_projects();
+  async save_project(project: Project): Promise<void> {
+    let projects = (await this.load_all_projects()).filter(p => p.id !== project.id)
     projects.push(project);
     return this.save_in_file(projects)
   }
