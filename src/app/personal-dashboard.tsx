@@ -2,9 +2,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { Plus, Trash2, Edit2, AlertCircle, CheckCircle, FileText, Home, Settings, DollarSign, PlusCircle } from 'lucide-react';
-import { empty_project, empty_section, empty_task, get_project_in_projects_by_id, get_section_in_projects_by_id, get_task_in_projects_by_id, Project, project_with_updated_section, project_with_updated_task, project_without_section, projects_sorted_by_last_modified_time, projects_with_new_section, projects_with_new_task, projects_with_updated_project, Section, section_without_task, Task, toggle_task } from './types';
-import { load_projects, save_project, create_section_in_project, create_task_in_section, delete_project } from './projects.controller';
-import { updateProject } from './airtable';
+import { empty_project, empty_section, empty_task, get_project_in_projects_by_id, get_section_in_projects_by_id, get_task_in_projects_by_id, Project, project_with_new_section, project_with_updated_section, project_with_updated_task, project_without_section, projects_sorted_by_last_modified_time, projects_with_new_section, projects_with_new_task, projects_with_updated_project, Section, section_without_task, Task, toggle_task } from './types';
+import { load_projects, save_project, delete_project } from './projects.controller';
 
 const LocalStorage: Storage | null = (typeof window !== "undefined") ? localStorage : null;
 
@@ -110,15 +109,17 @@ const Dashboard: React.FC = () => {
       tasks: [],
       project_id: selectedProject.id,
     }
+
+    const project = project_with_new_section(selectedProject, section_to_add)
+    const updatedProjects: Project[] = projects_with_updated_project(projects, project)
+
     setLoading(true)
     try {
-      await create_section_in_project(section_to_add).finally(() => setLoading(false))
+      await save_project(project).finally(() => setLoading(false))
     } catch (e) {
       setError('Erreur lors de la création de la section')
       return;
     }
-
-    const updatedProjects: Project[] = projects_with_new_section(projects, section_to_add)
 
     setProjects(updatedProjects);
     setSelectedProject(updatedProjects.find(p => p.id === selectedProject.id) ?? null);
@@ -138,21 +139,21 @@ const Dashboard: React.FC = () => {
       completed: false,
       section_id: sectionId,
     }
-    const updatedProjects: Project[] = projects_with_new_task(projects, task_to_add)
 
-    const updatedProject: Project | null = updatedProjects.find(p => p.id === selectedProject.id) ?? null;
-    if (!updatedProject) return;
-    updatedProject.progress = calculateProgress(updatedProject);
+    const project = project_with_updated_task(selectedProject, task_to_add)
+    const updatedProjects = projects_with_updated_project(projects, project)
+
+    project.progress = calculateProgress(project);
 
     setLoading(true)
     try {
-      await create_task_in_section(task_to_add).finally(() => setLoading(false))
+      await save_project(project).finally(() => setLoading(false))
     } catch (e) {
       setError('Erreur lors de la création de la section')
       return;
     }
     setProjects(updatedProjects);
-    setSelectedProject(updatedProject);
+    setSelectedProject(project);
     setNewTask(empty_task());
     setIsAddingTask({ active: false, sectionId: null });
   };
@@ -249,7 +250,6 @@ const Dashboard: React.FC = () => {
         if (p) {
           p.title = editText
           updatedProject = p
-          await save_project(p)
         }
         break;
 
@@ -262,7 +262,7 @@ const Dashboard: React.FC = () => {
         break;
 
       case 'task':
-        const [sectionId, taskId] = editMode.id?.split('-') ?? [null, null];
+        const [_, taskId] = editMode.id?.split('-') ?? [null, null];
         const t = get_task_in_projects_by_id(projects, taskId)
         if (t) {
           t.title = editText
@@ -275,9 +275,15 @@ const Dashboard: React.FC = () => {
     }
 
     updatedProject.lastModifiedTime = new Date()
-    await save_project(updatedProject)
-    setProjects(projects_with_updated_project(projects, updatedProject));
+    setLoading(true)
+    try {
+      await save_project(updatedProject).finally(() => setLoading(false))
+    } catch (e) {
+      setError('Error lors de la modification.')
+      return
+    }
 
+    setProjects(projects_with_updated_project(projects, updatedProject));
     if (selectedProject) {
       setSelectedProject(updatedProjects.find(p => p.id === selectedProject.id) ?? null);
     }

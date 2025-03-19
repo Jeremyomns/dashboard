@@ -1,8 +1,6 @@
 "use server"
 
 import { SaveProject } from "../repositories/save-project";
-import { CreateSection } from "../repositories/create-section";
-import { CreateTask } from "../repositories/create-task";
 import { LoadProjects } from "../repositories/load-projects";
 import { LoadSections } from "../repositories/load-sections";
 import { LoadTasks } from "../repositories/load-tasks";
@@ -97,8 +95,6 @@ class JsonProjectRepository implements
   LoadSections,
   LoadTasks,
   SaveProject,
-  CreateSection,
-  CreateTask,
   DeleteProject {
 
   constructor(private readonly path: string) {
@@ -152,15 +148,6 @@ class JsonProjectRepository implements
         await this.load_projects_from_json_file(),
         section
       ))
-  }
-
-  async create_task(task: Task): Promise<void> {
-    return this.save_in_file(
-      projects_with_new_task(
-        await this.load_projects_from_json_file(),
-        task
-      )
-    )
   }
 
   async delete_project(project_id: string): Promise<void> {
