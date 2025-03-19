@@ -38,6 +38,9 @@ export class AirtableProjectsRepository implements
     this.sections_table = this.base(sections_table_name);
     this.tasks_table = this.base(tasks_table_name);
   }
+  load_project_by_id(id: string): Promise<Project | undefined> {
+    throw new Error("Method not implemented.");
+  }
 
   async load_all_projects(): Promise<Project[]> {
     const records = await this.projects_table.select().all();
