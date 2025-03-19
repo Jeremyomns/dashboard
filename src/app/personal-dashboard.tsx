@@ -2,8 +2,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { Plus, Trash2, Edit2, AlertCircle, CheckCircle, FileText, Home, Settings, DollarSign, PlusCircle } from 'lucide-react';
-import { empty_project, empty_section, empty_task, get_project_in_projects_by_id, get_section_in_projects_by_id, get_task_in_projects_by_id, Project, project_with_updated_section, project_with_updated_task, projects_with_new_section, projects_with_new_task, projects_with_updated_project, projects_with_updated_section, projects_with_updated_task, Section, Task } from './types';
-import { load_projects, save_project, create_section_in_project, create_task_in_section } from './projects.controller';
+import { empty_project, empty_section, empty_task, get_project_in_projects_by_id, get_section_in_projects_by_id, get_task_in_projects_by_id, Project, project_with_updated_section, project_with_updated_task, project_without_section, projects_sorted_by_last_modified_time, projects_with_new_section, projects_with_new_task, projects_with_updated_project, Section, section_without_task, Task, toggle_task } from './types';
+import { load_projects, save_project, create_section_in_project, create_task_in_section, delete_project } from './projects.controller';
 import { updateProject } from './airtable';
 
 const LocalStorage: Storage | null = (typeof window !== "undefined") ? localStorage : null;
@@ -107,7 +107,8 @@ const Dashboard: React.FC = () => {
     const section_to_add: Section = {
       id: newId.toString(),
       title: newSection.title,
-      tasks: []
+      tasks: [],
+      project_id: selectedProject.id,
     }
     setLoading(true)
     try {
@@ -134,7 +135,8 @@ const Dashboard: React.FC = () => {
       ...empty_task(),
       id: newId.toString(),
       title: newTask.title,
-      completed: false
+      completed: false,
+      section_id: sectionId,
     }
     const updatedProjects: Project[] = projects_with_new_task(projects, task_to_add)
 
@@ -151,99 +153,79 @@ const Dashboard: React.FC = () => {
     }
     setProjects(updatedProjects);
     setSelectedProject(updatedProject);
-    setNewTask(empty_task);
+    setNewTask(empty_task());
     setIsAddingTask({ active: false, sectionId: null });
   };
 
   // Suppression d'un projet
-  const handleDeleteProject = (projectId: string) => {
+  const handleDeleteProject = async (projectId: string) => {
     const updatedProjects = projects.filter(project => project.id !== projectId);
     setProjects(updatedProjects);
+    setLoading(true)
+    try {
+      await delete_project(projectId).finally(() => setLoading(false))
+    } catch (e) {
+      setError('Erreur lors de la suppression du projet.')
+    }
     setSelectedProject(null);
   };
 
   // Suppression d'une section
-  const handleDeleteSection = (sectionId: string) => {
-    const updatedProjects = projects.map(project => {
-      if (project.id === selectedProject?.id) {
-        return {
-          ...project,
-          sections: project.sections?.filter(section => section.id !== sectionId)
-        };
-      }
-      return project;
-    });
+  const handleDeleteSection = async (sectionId: string) => {
+    if (!selectedProject) return;
+    const updated_project = project_without_section(selectedProject, sectionId);
+    const updated_projects = projects_with_updated_project(projects, updated_project);
+    updated_project.progress = calculateProgress(updated_project);
 
-    const updatedProject = updatedProjects.find(p => p.id === selectedProject?.id);
-    if (!updatedProject) return;
-    updatedProject.progress = calculateProgress(updatedProject);
-
-    setProjects(updatedProjects);
-    setSelectedProject(updatedProject);
+    setLoading(true)
+    try {
+      await save_project(updated_project).finally(() => setLoading(false))
+    } catch (e) {
+      setError('Erreur lors de la suppression de la tâche.')
+    }
+    setProjects(updated_projects);
+    setSelectedProject(updated_project);
   };
 
   // Suppression d'une tâche
-  const handleDeleteTask = (sectionId: string, taskId: string) => {
-    const updatedProjects: Project[] = projects.map(project => {
-      if (project.id === selectedProject?.id) {
-        return {
-          ...project,
-          sections: project.sections?.map(section => {
-            if (section.id === sectionId) {
-              return {
-                ...section,
-                tasks: section.tasks?.filter(task => task.id !== taskId)
-              } satisfies Section;
-            }
-            return section;
-          })
-        };
-      }
-      return project;
-    });
+  const handleDeleteTask = async (sectionId: string, taskId: string) => {
+    if (!selectedProject) return;
+    const s = selectedProject.sections?.find(s => s.id === sectionId)
+    if (!s) return
 
-    const updatedProject = updatedProjects.find(p => p.id === selectedProject?.id);
-    if (!updatedProject) return;
-    updatedProject.progress = calculateProgress(updatedProject);
+    const updated_project = project_with_updated_section(selectedProject, section_without_task(s, taskId))
+    const updated_projects = projects_with_updated_project(projects, updated_project);
+    updated_project.progress = calculateProgress(updated_project);
 
-    setProjects(updatedProjects);
-    setSelectedProject(updatedProject);
+    setLoading(true)
+    try {
+      await save_project(updated_project).finally(() => setLoading(false))
+    } catch (e) {
+      setError('Erreur lors de la suppression de la tâche.')
+    }
+    setProjects(updated_projects);
+    setSelectedProject(updated_project);
   };
 
   // Basculer l'état d'une tâche (complétée ou non)
-  const handleToggleTask = (sectionId: string, taskId: string) => {
-    const updatedProjects: Project[] = projects.map(project => {
-      if (project.id === selectedProject?.id) {
-        return {
-          ...project,
-          sections: project.sections?.map(section => {
-            if (section.id === sectionId) {
-              return {
-                ...section,
-                tasks: section.tasks?.map(task => {
-                  if (task.id === taskId) {
-                    return {
-                      ...task,
-                      completed: !task.completed
-                    };
-                  }
-                  return task;
-                })
-              };
-            }
-            return section;
-          })
-        };
-      }
-      return project;
-    });
+  const handleToggleTask = async (sectionId: string, taskId: string) => {
+    const project_to_update = projects.find(p => p.id === selectedProject?.id);
+    const task = get_task_in_projects_by_id(projects, taskId);
+    if (!project_to_update || !task) return
 
-    const updatedProject = updatedProjects.find(p => p.id === selectedProject?.id);
-    if (!updatedProject) return;
-    updatedProject.progress = calculateProgress(updatedProject);
+    const updated_project = project_with_updated_task(project_to_update, toggle_task(task))
 
-    setProjects(updatedProjects);
-    setSelectedProject(updatedProject);
+    updated_project.progress = calculateProgress(updated_project);
+
+    setProjects(projects_with_updated_project(projects, updated_project));
+    setLoading(true)
+    try {
+      await save_project(updated_project).finally(() => setLoading(false))
+    } catch (e) {
+      setError('Erreur lors de la modification de la tâche.')
+      return;
+    }
+    setSelectedProject(updated_project);
   };
 
   // Gestion de l'édition des titres (projet, section, tâche)
@@ -292,7 +274,8 @@ const Dashboard: React.FC = () => {
         break;
     }
 
-    save_project(updatedProject)
+    updatedProject.lastModifiedTime = new Date()
+    await save_project(updatedProject)
     setProjects(projects_with_updated_project(projects, updatedProject));
 
     if (selectedProject) {
@@ -352,7 +335,7 @@ const Dashboard: React.FC = () => {
       )}
 
       <div className={styles.gridLayout}>
-        {projects.map(project => (
+        {projects_sorted_by_last_modified_time(projects).map(project => (
           <div
             key={project.id}
             className={styles.card}

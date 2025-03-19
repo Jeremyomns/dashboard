@@ -8,6 +8,7 @@ import { LoadSections } from "../repositories/load-sections";
 import { LoadTasks } from "../repositories/load-tasks";
 import { Project, projects_with_new_section, projects_with_new_task, Section, Task } from "../types";
 import * as fs from 'fs';
+import { DeleteProject } from "../repositories/delete-project";
 /*
 const _projects: Project[] = [
   {
@@ -97,7 +98,8 @@ class JsonProjectRepository implements
   LoadTasks,
   SaveProject,
   CreateSection,
-  CreateTask {
+  CreateTask,
+  DeleteProject {
 
   constructor(private readonly path: string) {
     if (!fs.existsSync(path))
@@ -110,7 +112,8 @@ class JsonProjectRepository implements
 
   private async load_projects_from_json_file(): Promise<Project[]> {
     const json = await (await fs.promises.readFile(this.path)).toString();
-    return (JSON.parse(json)).map((p: any) => p satisfies Project)
+    return (JSON.parse(json))
+      .map((p: any) => ({ ...p, lastModifiedTime: new Date(Date.parse(p.lastModifiedTime)) } satisfies Project))
   }
 
   load_all_projects(): Promise<Project[]> {
@@ -157,6 +160,12 @@ class JsonProjectRepository implements
         await this.load_projects_from_json_file(),
         task
       )
+    )
+  }
+
+  async delete_project(project_id: string): Promise<void> {
+    return this.save_in_file(
+      (await this.load_projects_from_json_file()).filter(p => p.id !== project_id)
     )
   }
 }
