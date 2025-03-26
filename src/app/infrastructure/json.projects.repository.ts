@@ -2,8 +2,6 @@
 
 import { SaveProject } from "../repositories/save-project";
 import { LoadProjects } from "../repositories/load-projects";
-import { LoadSections } from "../repositories/load-sections";
-import { LoadTasks } from "../repositories/load-tasks";
 import { Project, projects_with_new_section, projects_with_new_task, Section, Task } from "../types";
 import * as fs from 'fs';
 import { DeleteProject } from "../repositories/delete-project";
@@ -92,8 +90,6 @@ const _projects: Project[] = [
 
 class JsonProjectRepository implements
   LoadProjects,
-  LoadSections,
-  LoadTasks,
   SaveProject,
   DeleteProject {
 

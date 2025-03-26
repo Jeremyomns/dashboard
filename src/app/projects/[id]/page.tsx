@@ -1,4 +1,6 @@
 import { load_project_by_id } from "@/app/projects.controller";
+import ProjectView from "@/components/project-view";
+import { ProjectProvider } from "@/contexts/project-context";
 import { notFound } from "next/navigation";
 
 interface ProjectDetailsProps {
@@ -10,6 +12,8 @@ export default async function ProjectDetails({ params }: ProjectDetailsProps) {
     if (!project) return notFound()
 
     return (
-        <h1>{project.id}</h1>
+        <ProjectProvider>
+            <ProjectView projectId={project.id}></ProjectView>
+        </ProjectProvider>
     )
 }

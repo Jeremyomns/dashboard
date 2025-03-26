@@ -38,7 +38,12 @@ export interface Project {
   lastModifiedTime?: Date;
 }
 
-
+export const calculateProgress = (sections: Section[]) => {
+  const allTasks: Task[] = sections.flatMap(section => section.tasks ?? []) ?? [];
+  if (allTasks.length === 0) return 0;
+  const completedTasks = allTasks.filter(task => task.completed).length;
+  return Math.round((completedTasks / allTasks.length) * 100);
+};
 
 export const empty_project = (): Project => ({
   id: '',
@@ -111,20 +116,24 @@ export function projects_with_new_task(projects: Project[], added: Task) {
 }
 
 export function project_with_new_section(project: Project, section: Section): Project {
+  const sections = project.sections ? [...project.sections, section] : [section]
   return {
     ...project,
     lastModifiedTime: new Date(),
-    sections: project.sections ? [...project.sections, section] : [section]
+    sections: sections,
+    progress: calculateProgress(sections)
   } satisfies Project;
 }
 
 export function project_with_updated_section(project: Project, updated: Section): Project {
+  const sections = project.sections
+    ? project.sections.map(s => s.id === updated.id ? updated : s)
+    : [updated]
   return {
     ...project,
     lastModifiedTime: new Date(),
-    sections: project.sections
-      ? project.sections.map(s => s.id === updated.id ? updated : s)
-      : [updated]
+    sections: sections,
+    progress: calculateProgress(sections),
   } satisfies Project
 }
 
@@ -139,9 +148,11 @@ export function project_with_updated_task(project: Project, updated: Task): Proj
 }
 
 export function project_without_section(p: Project, section_id: string) {
+  const sections = p.sections?.filter(s => s.id !== section_id) ?? [];
   return {
     ...p,
-    sections: p.sections?.filter(s => s.id !== section_id) ?? [],
+    sections: sections,
+    progress: calculateProgress(sections),
   } satisfies Project;
 }
 
@@ -199,5 +210,10 @@ export function get_task_in_projects_by_id(projets: Project[], id: string | null
   return projets
     .flatMap(p => p.sections?.flatMap(s => s.tasks ?? []) ?? [])
     .find(t => t?.id === id)
+}
+
+export function get_task_in_section_by_id(id: Task['id'], section: Section): Task | undefined {
+  if (!id) return undefined;
+  return section.tasks?.find(t => t.id === id)
 }
 

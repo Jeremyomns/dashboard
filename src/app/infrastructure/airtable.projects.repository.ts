@@ -1,8 +1,6 @@
 import Airtable, { FieldSet, Table } from "airtable";
 import { LoadProjects } from "../repositories/load-projects";
 import { Project, Section, Task } from "../types";
-import { LoadSections } from "../repositories/load-sections";
-import { LoadTasks } from "../repositories/load-tasks";
 import { SaveProject } from "../repositories/save-project";
 
 Airtable.configure({
@@ -14,8 +12,6 @@ const base = Airtable.base(process.env.AIR_TABLE_BASE_ID || '');
 
 export class AirtableProjectsRepository implements
   LoadProjects,
-  LoadSections,
-  LoadTasks,
   SaveProject {
   private readonly base;
   private readonly projects_table: Table<FieldSet>;
@@ -37,6 +33,9 @@ export class AirtableProjectsRepository implements
     this.projects_table = this.base(projects_table_name);
     this.sections_table = this.base(sections_table_name);
     this.tasks_table = this.base(tasks_table_name);
+  }
+  load_project_by_id(id: string): Promise<Project | undefined> {
+    throw new Error("Method not implemented.");
   }
 
   async load_all_projects(): Promise<Project[]> {

@@ -1,7 +1,11 @@
-import Dashboard from "./personal-dashboard";
+import Dashboard from "@/components/dashboard";
+import { ProjectProvider } from "@/contexts/project-context";
+
 
 export default function Home() {
   return (
-    <Dashboard></Dashboard>
+    <ProjectProvider>
+      <Dashboard></Dashboard>
+    </ProjectProvider>
   );
 }
